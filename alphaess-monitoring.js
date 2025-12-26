@@ -6,17 +6,13 @@ module.exports = function(RED)
 
 	const API = require('./alphaess-open-api.js');
 
-	// ~~~ fields ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-	let Platform = this;
-
 	// ~~~ constructor / destructor ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 	function AlphaESS(myNode)
 	{
 		RED.nodes.createNode(this, myNode);
 
-		Platform = this;
+		const Platform = this;
 
 		var Loop;
 	
