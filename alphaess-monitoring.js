@@ -6,13 +6,17 @@ module.exports = function(RED)
 
 	const API = require('./alphaess-open-api.js');
 
+	// ~~~ fields ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+	let Platform = this;
+
 	// ~~~ constructor / destructor ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 	function AlphaESS(myNode)
 	{
 		RED.nodes.createNode(this, myNode);
 
-		const Platform = this;
+		Platform = this;
 
 		var Loop;
 	
@@ -40,11 +44,11 @@ module.exports = function(RED)
 			},
 		};
 
-		this.on('input', async function (msg)
+		this.on('input', async (msg) =>
 		{
 			if (!this.Mode)
 			{
-				Platform.warn ('For being able to use input, you must switch over to manual mode.');
+				this.warn ('For being able to use input, you must switch over to manual mode.');
 				return;
 			}
 
@@ -52,10 +56,10 @@ module.exports = function(RED)
 				case 'POST':
 					if (!msg.command || !msg.payload) 
 					{
-						Platform.error ('Invalid arguments given!');
+						this.error ('Invalid arguments given!');
 					}
 
-					var r = await API.SetData(msg.command, Platform.Serial, msg.payload, Platform.AppID, Platform.AppSecret, Platform);
+					var r = await API.SetData(msg.command, this.Serial, msg.payload, this.AppID, this.AppSecret, Platform);
 					break;
 
 				default:
@@ -70,14 +74,14 @@ module.exports = function(RED)
 						)
 					)
 					{
-						Platform.error ('Invalid arguments given!');
+						this.error ('Invalid arguments given!');
 					}
 
-					var r = await API.GetData(msg.command, Platform.Serial, msg.payload, Platform.AppID, Platform.AppSecret, Platform);
+					var r = await API.GetData(msg.command, this.Serial, msg.payload, this.AppID, this.AppSecret, Platform);
 					break;
 			}
 
-			Platform.send(
+			this.send(
 				{
 					origin: msg,
 					payload : r
@@ -85,23 +89,22 @@ module.exports = function(RED)
 			);
 		});
 
-		async function monitor()
-		{
+		const monitor = async () => {
 			// don't monitor if not expected or no correctly configuration exists...
-			if (Platform.Mode !== 0 || !Platform.AppID || !Platform.AppSecret || !Platform.Serial)
+			if (this.Mode !== 0 || !this.AppID || !this.AppSecret || !this.Serial)
 			{
 				return;
 			}
 
 			// let's cache hourly statistics every 10 minutes...
-			if (Date.now() > Platform.Cache.Monthly.LastQuery + (1000 * 60 * 10)) {
-				Platform.Cache.Hourly.Statistics = await API.FetchHourlyData(Platform.Serial, Platform.AppID, Platform.AppSecret, Platform);
-				if (!Platform.Cache.Hourly.Statistics)
+			if (Date.now() > this.Cache.Monthly.LastQuery + (1000 * 60 * 10)) {
+                this.Cache.Hourly.Statistics = await API.FetchHourlyData(this.Serial, this.AppID, this.AppSecret, Platform);
+				if (!this.Cache.Hourly.Statistics)
 				{
 					return;
 				}
 
-				Platform.Cache.Hourly.Statistics = Platform.Cache.Hourly.Statistics.sort(
+				this.Cache.Hourly.Statistics = this.Cache.Hourly.Statistics.sort(
 					function(a, b) {
 						if (a.uploadTime < b.uploadTime)
 						{
@@ -117,13 +120,13 @@ module.exports = function(RED)
 					}
 				);
 
-				Platform.Cache.Hourly.LastQuery = Date.now();
+				this.Cache.Hourly.LastQuery = Date.now();
 			}
 
 			// let's cache daily statistics every 10 minutes...
-			if (Date.now() > Platform.Cache.Daily.LastQuery + (1000 * 60 * 10)) {
-				var r = await API.FetchTodaysData(Platform.Serial, Platform.AppID, Platform.AppSecret, Platform);
-				Platform.Cache.Daily.Statistics = r ?? {
+			if (Date.now() > this.Cache.Daily.LastQuery + (1000 * 60 * 10)) {
+				var r = await API.FetchTodaysData(this.Serial, this.AppID, this.AppSecret, Platform);
+				this.Cache.Daily.Statistics = r ?? {
 					eCharge: 0,
 					eChargingPile: 0,
 					eDischarge: 0,
@@ -133,25 +136,25 @@ module.exports = function(RED)
 					epv: 0
 				};
 
-				Platform.Cache.Daily.LastQuery = Date.now();
+				this.Cache.Daily.LastQuery = Date.now();
 			}
 
 			// let's cache monthly statistics every hour...
-			if (Date.now() > Platform.Cache.Monthly.LastQuery + (1000 * 60 * 60)) {
+			if (Date.now() > this.Cache.Monthly.LastQuery + (1000 * 60 * 60)) {
 				//TBD
 
-				Platform.Cache.Monthly.LastQuery = Date.now();
+				this.Cache.Monthly.LastQuery = Date.now();
 			}
 
 			// let's cache yearly statistics every 1 days...
-			if (Date.now() > Platform.Cache.Yearly.LastQuery + (1000 * 60 * 60 * 24)) {
+			if (Date.now() > this.Cache.Yearly.LastQuery + (1000 * 60 * 60 * 24)) {
 				//TBD
 
-				Platform.Cache.Yearly.LastQuery = Date.now();
+				this.Cache.Yearly.LastQuery = Date.now();
 			}
 
-			var r = await API.FetchRealTimeData(Platform.Serial, Platform.AppID, Platform.AppSecret, Platform);
-			Platform.ProcessData(
+			var r = await API.FetchRealTimeData(this.Serial, this.AppID, this.AppSecret, Platform);
+			this.ProcessData(
 				r ??
 				{
 					ppv: 0,
@@ -168,9 +171,9 @@ module.exports = function(RED)
 
 		Loop = setInterval(function() {
 			monitor();
-		}, Platform.Interval * 1000);   // trigger every defined secs
+		}, this.Interval * 1000);   // trigger every defined secs
 
-		Platform.on('close', function() {
+		this.on('close', function() {
 			if (Loop) {
 				clearInterval(Loop);
 			}
@@ -191,6 +194,9 @@ module.exports = function(RED)
 		"/systems",
 		RED.auth.needsPermission('systems.read'),
 		async function(myRequest, myResponse) {
+            if (!Platform?.AppID || !Platform?.AppSecret) {
+                myResponse.json([]);
+            }
 			myResponse.json(await API.FetchSystemList(Platform.AppID, Platform.AppSecret, Platform) ?? []);
 		}
 	);
